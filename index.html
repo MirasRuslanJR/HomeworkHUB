@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HomeWorkHub - Платформа для домашних заданий</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Orbitron:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Animated Background -->
+    <div class="bg-animation">
+        <div class="grid-lines"></div>
+        <canvas id="particles"></canvas>
+    </div>
+
+    <!-- Auth Pages -->
+    <div id="auth-container" class="auth-page active">
+        <!-- Login Page -->
+        <div id="login-page" class="auth-form-container active">
+            <div class="auth-card glow-card">
+                <div class="logo-container">
+                    <div class="logo-icon">📚</div>
+                    <h1 class="logo-text">HomeWork<span class="highlight">Hub</span></h1>
+                </div>
+                <p class="auth-subtitle">Твоя платформа для учебы</p>
+                
+                <form id="login-form" class="auth-form">
+                    <div class="form-group">
+                        <label for="login-email">Email</label>
+                        <input type="email" id="login-email" placeholder="student@ura.nis.edu.kz" required autocomplete="email">
+                    </div>
+                    <div class="form-group">
+                        <label for="login-password">Пароль</label>
+                        <input type="password" id="login-password" placeholder="••••••••" required autocomplete="current-password">
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <span>Войти</span>
+                        <div class="btn-glow"></div>
+                    </button>
+                </form>
+
+                <div class="auth-switch">
+                    Нет аккаунта? <a href="#" id="show-register">Зарегистрироваться</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Register Page -->
+        <div id="register-page" class="auth-form-container">
+            <div class="auth-card glow-card">
+                <div class="logo-container">
+                    <div class="logo-icon">📚</div>
+                    <h1 class="logo-text">Регистрация</h1>
+                </div>
+                
+                <form id="register-form" class="auth-form">
+                    <div class="form-group">
+                        <label for="register-name">Имя</label>
+                        <input type="text" id="register-name" placeholder="Имя Фамилия" required autocomplete="name">
+                    </div>
+                    <div class="form-group">
+                        <label for="register-email">Email (только @ura.nis.edu.kz)</label>
+                        <input type="email" id="register-email" placeholder="student@ura.nis.edu.kz" required autocomplete="email">
+                    </div>
+                    <div class="form-group">
+                        <label for="register-password">Пароль</label>
+                        <input type="password" id="register-password" placeholder="Минимум 6 символов" required autocomplete="new-password">
+                    </div>
+                    <div class="form-group">
+                        <label for="register-class-code">Код класса (опционально)</label>
+                        <input type="text" id="register-class-code" placeholder="ABC123" autocomplete="off">
+                        <small>Если у тебя есть код класса, введи его. Или создай новый класс позже.</small>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <span>Создать аккаунт</span>
+                        <div class="btn-glow"></div>
+                    </button>
+                </form>
+
+                <div class="auth-switch">
+                    Уже есть аккаунт? <a href="#" id="show-login">Войти</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Email Verification Screen -->
+        <div id="verification-screen" class="auth-form-container" style="display: none;">
+            <div class="auth-card glow-card">
+                <div class="logo-container">
+                    <div class="logo-icon">📧</div>
+                    <h1 class="logo-text">Подтверди email</h1>
+                </div>
+                <p class="auth-subtitle">Мы отправили письмо на твою почту</p>
+                
+                <div class="verification-content">
+                    <div class="info-box">
+                        <p class="verification-email-text">
+                            📬 Проверь свою почту <strong id="verification-email"></strong>
+                        </p>
+                        <p class="verification-hint">
+                            Перейди по ссылке в письме для подтверждения
+                        </p>
+                    </div>
+                    
+                    <div class="verification-actions">
+                        <button id="check-verification-btn" class="btn btn-primary">
+                            <span>✓ Я подтвердил email</span>
+                            <div class="btn-glow"></div>
+                        </button>
+                        
+                        <button id="resend-verification-btn" class="btn btn-secondary">
+                            <span>📧 Отправить письмо повторно</span>
+                        </button>
+                        
+                        <button id="verification-logout-btn" class="btn btn-secondary">
+                            <span>🚪 Выйти</span>
+                        </button>
+                    </div>
+                    
+                    <div class="verification-note">
+                        <p>💡 Не видишь письмо? Проверь папку "Спам" или "Промоакции"</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="app-container" class="app-page">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-left">
+                <div class="logo-small">📚</div>
+                <h2>HomeWork<span class="highlight">Hub</span></h2>
+            </div>
+            <div class="header-center">
+                <div class="class-badge" id="current-class-badge">
+                    <span id="class-name">Выберите класс</span>
+                    <span id="class-code-display"></span>
+                </div>
+            </div>
+            <div class="header-right">
+                <button class="icon-btn" id="notifications-btn" title="Уведомления" aria-label="Уведомления">
+                    <span class="notification-dot"></span>
+                    🔔
+                </button>
+                <div class="user-menu">
+                    <button class="user-avatar" id="user-avatar" aria-label="Меню пользователя">
+                        <span id="user-initial">U</span>
+                    </button>
+                    <div class="dropdown-menu" id="user-dropdown">
+                        <div class="user-info">
+                            <strong id="user-name-display">Пользователь</strong>
+                            <small id="user-email-display">email@example.com</small>
+                        </div>
+                        <div class="dropdown-divider"></div>
+                        <a href="#" id="view-profile">👤 Профиль</a>
+                        <a href="#" id="manage-class">🎓 Управление классом</a>
+                        <div class="dropdown-divider"></div>
+                        <a href="#" id="logout-btn">🚪 Выйти</a>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" data-view="dashboard">
+                    <span class="nav-icon">🏠</span>
+                    <span>Главная</span>
+                </a>
+                <a href="#" class="nav-item" data-view="calendar">
+                    <span class="nav-icon">📅</span>
+                    <span>Календарь</span>
+                </a>
+                <a href="#" class="nav-item" data-view="completed">
+                    <span class="nav-icon">✅</span>
+                    <span>Выполнено</span>
+                </a>
+                <a href="#" class="nav-item" data-view="leaderboard">
+                    <span class="nav-icon">🏆</span>
+                    <span>Рейтинг</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-stats">
+                <div class="stat-card">
+                    <div class="stat-label">Твои баллы</div>
+                    <div class="stat-value" id="user-points">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Выполнено</div>
+                    <div class="stat-value" id="completed-count">0</div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Dashboard View -->
+            <div id="dashboard-view" class="view active">
+                <div class="view-header">
+                    <div>
+                        <h1 class="view-title">Домашние задания</h1>
+                        <p class="view-subtitle">Все актуальные задания твоего класса</p>
+                    </div>
+                    <button class="btn btn-primary" id="add-homework-btn">
+                        <span>+ Добавить ДЗ</span>
+                        <div class="btn-glow"></div>
+                    </button>
+                </div>
+
+                <div class="filters">
+                    <button class="filter-btn active" data-filter="all">Все</button>
+                    <button class="filter-btn" data-filter="pending">Активные</button>
+                    <button class="filter-btn" data-filter="urgent">Срочные</button>
+                </div>
+
+                <div id="homework-grid" class="homework-grid">
+                    <!-- Homework cards will be inserted here -->
+                </div>
+            </div>
+
+            <!-- Calendar View -->
+            <div id="calendar-view" class="view">
+                <div class="view-header">
+                    <h1 class="view-title">Календарь заданий</h1>
+                </div>
+                <div id="calendar-container" class="calendar-container">
+                    <!-- Calendar will be generated here -->
+                </div>
+            </div>
+
+            <!-- Completed View -->
+            <div id="completed-view" class="view">
+                <div class="view-header">
+                    <h1 class="view-title">Выполненные задания</h1>
+                    <p class="view-subtitle">История твоих достижений</p>
+                </div>
+                <div id="completed-grid" class="homework-grid">
+                    <!-- Completed homework will be shown here -->
+                </div>
+            </div>
+
+            <!-- Leaderboard View -->
+            <div id="leaderboard-view" class="view">
+                <div class="view-header">
+                    <h1 class="view-title">Рейтинг учеников</h1>
+                </div>
+                
+                <div class="leaderboard-tabs">
+                    <button class="tab-btn active" data-scope="class">Твой класс</button>
+                    <button class="tab-btn" data-scope="global">Все классы</button>
+                </div>
+
+                <div id="leaderboard-container" class="leaderboard-container">
+                    <!-- Leaderboard will be generated here -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <!-- Add Homework Modal -->
+    <div id="add-homework-modal" class="modal" role="dialog" aria-labelledby="add-hw-title" aria-modal="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="add-hw-title">Добавить домашнее задание</h2>
+                <button class="close-modal" data-modal="add-homework-modal" aria-label="Закрыть">×</button>
+            </div>
+            <form id="add-homework-form">
+                <div class="form-group">
+                    <label for="hw-subject">Предмет</label>
+                    <input type="text" id="hw-subject" placeholder="Математика, Физика..." required>
+                </div>
+                <div class="form-group">
+                    <label for="hw-description">Описание задания</label>
+                    <textarea id="hw-description" rows="4" placeholder="Опиши задание подробно..." required></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="hw-deadline">Дедлайн</label>
+                    <input type="datetime-local" id="hw-deadline" required>
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    <span>Добавить задание</span>
+                    <div class="btn-glow"></div>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Homework Detail Modal -->
+    <div id="homework-detail-modal" class="modal" role="dialog" aria-labelledby="hw-detail-title" aria-modal="true">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2 id="detail-subject">Предмет</h2>
+                <button class="close-modal" data-modal="homework-detail-modal" aria-label="Закрыть">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="detail-section">
+                    <h3>Описание</h3>
+                    <p id="detail-description">Описание задания</p>
+                </div>
+                <div class="detail-section">
+                    <h3>Дедлайн</h3>
+                    <p id="detail-deadline" class="deadline-text">01.01.2024</p>
+                </div>
+                <div class="detail-section">
+                    <h3>Добавил</h3>
+                    <p id="detail-author">Имя пользователя</p>
+                </div>
+
+                <div class="detail-section">
+                    <h3>Твое доказательство выполнения</h3>
+                    <div id="proof-upload-area" class="proof-upload">
+                        <input type="file" id="proof-file" accept="image/jpeg,image/jpg,image/png,image/webp" style="display: none;">
+                        <button class="btn btn-secondary" id="upload-proof-btn">
+                            <span>📸 Загрузить фото доказательства</span>
+                        </button>
+                        <p class="upload-hint">Загрузи фото выполненного задания</p>
+                    </div>
+                    <div id="proof-preview" class="proof-preview" style="display: none;">
+                        <img id="proof-image" src="" alt="Доказательство">
+                        <button class="btn btn-danger" id="remove-proof-btn">Удалить</button>
+                    </div>
+                </div>
+
+                <div id="proofs-section" class="detail-section" style="display: none;">
+                    <h3>Доказательства других учеников</h3>
+                    <p class="info-text">Доступны только после загрузки своего доказательства</p>
+                    <div id="other-proofs-grid" class="proofs-grid">
+                        <!-- Other students' proofs will be shown here -->
+                    </div>
+                </div>
+
+                <button class="btn btn-primary btn-complete" id="mark-complete-btn">
+                    <span>✓ Отметить выполненным (+1 балл)</span>
+                    <div class="btn-glow"></div>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Class Management Modal -->
+    <div id="class-modal" class="modal" role="dialog" aria-labelledby="class-title" aria-modal="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="class-title">Управление классом</h2>
+                <button class="close-modal" data-modal="class-modal" aria-label="Закрыть">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="class-options">
+                    <div class="class-option">
+                        <h3>Создать новый класс</h3>
+                        <form id="create-class-form">
+                            <div class="form-group">
+                                <label for="class-name-input">Название класса</label>
+                                <input type="text" id="class-name-input" placeholder="9А" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary">
+                                <span>Создать класс</span>
+                            </button>
+                        </form>
+                        <div id="generated-code" class="code-display" style="display: none;">
+                            <p>Код твоего класса:</p>
+                            <div class="code-box">
+                                <span id="class-code-value"></span>
+                                <button class="btn-copy" id="copy-code-btn" type="button" aria-label="Копировать код">📋</button>
+                            </div>
+                            <small>Поделись этим кодом с одноклассниками!</small>
+                        </div>
+                    </div>
+
+                    <div class="divider-text">или</div>
+
+                    <div class="class-option">
+                        <h3>Присоединиться к классу</h3>
+                        <form id="join-class-form">
+                            <div class="form-group">
+                                <label for="join-code-input">Код класса</label>
+                                <input type="text" id="join-code-input" placeholder="ABC123" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary">
+                                <span>Присоединиться</span>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <div id="current-class-info" style="display: none;">
+                    <div class="divider-text"></div>
+                    <div class="current-class-card">
+                        <h3>Твой текущий класс</h3>
+                        <p><strong>Название:</strong> <span id="current-class-name-display"></span></p>
+                        <p><strong>Код:</strong> <span id="current-class-code-display"></span></p>
+                        <p><strong>Участников:</strong> <span id="current-class-members"></span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report Modal -->
+    <div id="report-modal" class="modal" role="dialog" aria-labelledby="report-title" aria-modal="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="report-title">Пожаловаться на доказательство</h2>
+                <button class="close-modal" data-modal="report-modal" aria-label="Закрыть">×</button>
+            </div>
+            <form id="report-form">
+                <div class="form-group">
+                    <label for="report-reason">Причина жалобы</label>
+                    <textarea id="report-reason" rows="4" placeholder="Опиши, почему это доказательство неправильное..." required></textarea>
+                </div>
+                <button type="submit" class="btn btn-danger">
+                    <span>Отправить жалобу</span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Notification Panel -->
+    <div id="notification-panel" class="notification-panel">
+        <div class="notification-header">
+            <h3>Уведомления</h3>
+            <button class="close-panel" id="close-notifications" aria-label="Закрыть">×</button>
+        </div>
+        <div id="notifications-list" class="notifications-list">
+            <!-- Notifications will be added here -->
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- Firebase SDK -->
+    <script type="module" src="app.js"></script>
+</body>
+</html>
