@@ -275,7 +275,7 @@ function initParticles() {
         draw() {
             ctx.beginPath();
             ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(0, 217, 255, 0.3)';
+            ctx.fillStyle = 'rgba(0, 217, 255, 0.5)';
             ctx.fill();
         }
     }
@@ -450,20 +450,35 @@ if (logoutBtn) {
     });
 }
 
-// Verification screen handlers
+// ИСПРАВЛЕННАЯ функция показа экрана верификации
 function showVerificationScreen(email) {
     const loginPage = document.getElementById('login-page');
     const registerPage = document.getElementById('register-page');
     const verificationScreen = document.getElementById('verification-screen');
     const verificationEmail = document.getElementById('verification-email');
+    const authContainer = document.getElementById('auth-container');
     
-    if (loginPage) loginPage.classList.remove('active');
-    if (registerPage) registerPage.classList.remove('active');
+    // Скрываем формы логина и регистрации
+    if (loginPage) {
+        loginPage.classList.remove('active');
+        loginPage.style.display = 'none';
+    }
+    if (registerPage) {
+        registerPage.classList.remove('active');
+        registerPage.style.display = 'none';
+    }
+    
+    // ВАЖНО: Показываем экран верификации и ОСТАВЛЯЕМ auth-container активным
     if (verificationScreen) {
         verificationScreen.style.display = 'block';
         verificationScreen.classList.add('active');
     }
-    if (verificationEmail) verificationEmail.textContent = email;
+    if (authContainer) {
+        authContainer.classList.add('active');
+    }
+    if (verificationEmail) {
+        verificationEmail.textContent = email;
+    }
 }
 
 const checkVerificationBtn = document.getElementById('check-verification-btn');
@@ -486,7 +501,10 @@ if (checkVerificationBtn) {
                     verificationScreen.classList.remove('active');
                 }
                 
-                location.reload();
+                // Принудительно перезагружаем страницу для повторной проверки состояния
+                setTimeout(() => {
+                    location.reload();
+                }, 500);
             } else {
                 showToast('Email еще не подтвержден. Проверь почту.', 'error');
             }
@@ -532,7 +550,7 @@ if (verificationLogoutBtn) {
 }
 
 
-// Отслеживание состояния авторизации
+// ИСПРАВЛЕННОЕ отслеживание состояния авторизации
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         currentUser = user;
@@ -541,7 +559,7 @@ onAuthStateChanged(auth, async (user) => {
         if (!user.emailVerified) {
             console.log('Email not verified');
             showVerificationScreen(user.email);
-            return;
+            return; // Останавливаем выполнение, но экран верификации уже показан правильно
         }
         
         try {
@@ -572,10 +590,21 @@ onAuthStateChanged(auth, async (user) => {
             const authContainer = document.getElementById('auth-container');
             const appContainer = document.getElementById('app-container');
             const verificationScreen = document.getElementById('verification-screen');
+            const loginPage = document.getElementById('login-page');
+            const registerPage = document.getElementById('register-page');
             
+            // Скрываем все экраны авторизации
             if (verificationScreen) {
                 verificationScreen.style.display = 'none';
                 verificationScreen.classList.remove('active');
+            }
+            if (loginPage) {
+                loginPage.style.display = '';
+                loginPage.classList.remove('active');
+            }
+            if (registerPage) {
+                registerPage.style.display = '';
+                registerPage.classList.remove('active');
             }
             if (authContainer) authContainer.classList.remove('active');
             if (appContainer) appContainer.classList.add('active');
@@ -610,6 +639,8 @@ onAuthStateChanged(auth, async (user) => {
         const authContainer = document.getElementById('auth-container');
         const appContainer = document.getElementById('app-container');
         const verificationScreen = document.getElementById('verification-screen');
+        const loginPage = document.getElementById('login-page');
+        const registerPage = document.getElementById('register-page');
         
         if (appContainer) appContainer.classList.remove('active');
         if (verificationScreen) {
@@ -618,10 +649,15 @@ onAuthStateChanged(auth, async (user) => {
         }
         if (authContainer) authContainer.classList.add('active');
         
-        const loginPage = document.getElementById('login-page');
-        const registerPage = document.getElementById('register-page');
-        if (loginPage) loginPage.classList.add('active');
-        if (registerPage) registerPage.classList.remove('active');
+        // Показываем форму логина
+        if (loginPage) {
+            loginPage.style.display = '';
+            loginPage.classList.add('active');
+        }
+        if (registerPage) {
+            registerPage.style.display = '';
+            registerPage.classList.remove('active');
+        }
     }
 });
 
@@ -653,67 +689,83 @@ if (showLoginBtn && loginPage && registerPage) {
 
 async function loadUserClass(userId) {
     try {
-        const classQuery = query(collection(db, 'classes'), where('members', 'array-contains', userId));
-        const classSnapshot = await getDocs(classQuery);
+        const userClassQuery = query(
+            collection(db, 'classMembers'),
+            where('userId', '==', userId)
+        );
         
-        if (!classSnapshot.empty) {
-            const classDoc = classSnapshot.docs[0];
-            currentClass = {
-                id: classDoc.id,
-                ...classDoc.data()
-            };
+        const userClassSnapshot = await getDocs(userClassQuery);
+        
+        if (!userClassSnapshot.empty) {
+            const memberDoc = userClassSnapshot.docs[0];
+            const classId = memberDoc.data().classId;
             
-            const className = document.getElementById('class-name');
-            const classCodeDisplay = document.getElementById('class-code-display');
-            const currentClassBadge = document.getElementById('current-class-badge');
+            const classDoc = await getDoc(doc(db, 'classes', classId));
             
-            if (className) className.textContent = currentClass.name;
-            if (classCodeDisplay) classCodeDisplay.textContent = `(код: ${currentClass.code})`;
-            if (currentClassBadge) currentClassBadge.style.display = 'flex';
-            
-            console.log('✅ Класс загружен:', currentClass.name, 'ID:', currentClass.id);
-            
-            await loadHomework();
+            if (classDoc.exists()) {
+                currentClass = {
+                    id: classDoc.id,
+                    ...classDoc.data()
+                };
+                
+                updateClassDisplay();
+                loadHomework(classId);
+            }
         } else {
-            currentClass = null;
-            
-            const className = document.getElementById('class-name');
-            const classCodeDisplay = document.getElementById('class-code-display');
-            const currentClassBadge = document.getElementById('current-class-badge');
-            
-            if (className) className.textContent = 'Нет класса - создайте или присоединитесь';
-            if (classCodeDisplay) classCodeDisplay.textContent = '';
-            if (currentClassBadge) currentClassBadge.style.display = 'flex';
-            
-            const homeworkGrid = document.getElementById('homework-grid');
-            if (homeworkGrid) {
-                homeworkGrid.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-state-icon">🎓</div>
-                        <h3>Вы не в классе</h3>
-                        <p>Создайте новый класс или присоединитесь к существующему</p>
-                        <button class="btn btn-primary" onclick="document.getElementById('manage-class').click()" style="margin-top: 20px;">
-                            <span>Управление классом</span>
-                            <div class="btn-glow"></div>
-                        </button>
-                    </div>
-                `;
+            console.log('Пользователь не в классе');
+            const badge = document.getElementById('current-class-badge');
+            if (badge) {
+                badge.style.cursor = 'pointer';
+                badge.onclick = () => openModal('class-modal');
             }
         }
     } catch (error) {
-        console.error('Error loading class:', error);
-        showToast('Ошибка загрузки класса', 'error');
+        console.error('Error loading user class:', error);
     }
 }
 
-// Создание класса
+function updateClassDisplay() {
+    const className = document.getElementById('class-name');
+    const classCodeDisplay = document.getElementById('class-code-display');
+    
+    if (currentClass) {
+        if (className) className.textContent = currentClass.name;
+        if (classCodeDisplay) classCodeDisplay.textContent = `(${currentClass.code})`;
+    } else {
+        if (className) className.textContent = 'Выберите класс';
+        if (classCodeDisplay) classCodeDisplay.textContent = '';
+    }
+}
+
+async function updateClassInfo() {
+    const currentClassInfo = document.getElementById('current-class-info');
+    const currentClassNameDisplay = document.getElementById('current-class-name-display');
+    const currentClassCodeDisplay = document.getElementById('current-class-code-display');
+    const currentClassMembers = document.getElementById('current-class-members');
+    
+    if (currentClass) {
+        if (currentClassInfo) currentClassInfo.style.display = 'block';
+        if (currentClassNameDisplay) currentClassNameDisplay.textContent = currentClass.name;
+        if (currentClassCodeDisplay) currentClassCodeDisplay.textContent = currentClass.code;
+        
+        const membersQuery = query(
+            collection(db, 'classMembers'),
+            where('classId', '==', currentClass.id)
+        );
+        const membersSnapshot = await getDocs(membersQuery);
+        if (currentClassMembers) currentClassMembers.textContent = membersSnapshot.size;
+    } else {
+        if (currentClassInfo) currentClassInfo.style.display = 'none';
+    }
+}
+
 const createClassForm = document.getElementById('create-class-form');
 if (createClassForm) {
     createClassForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         
-        if (!rateLimiter.canPerform('create_class', 3)) {
-            showToast('Слишком много попыток. Подожди минуту.', 'error');
+        if (!currentUser) {
+            showToast('Необходима авторизация', 'error');
             return;
         }
         
@@ -724,68 +776,78 @@ if (createClassForm) {
             return;
         }
         
-        const classCode = generateClassCode();
-        
         try {
+            const code = generateClassCode();
+            
             const classRef = await addDoc(collection(db, 'classes'), {
                 name: className,
-                code: classCode,
-                members: [currentUser.uid],
-                createdBy: currentUser.uid,
+                code: code,
+                creatorId: currentUser.uid,
                 createdAt: Timestamp.now()
+            });
+            
+            await setDoc(doc(db, 'classMembers', `${classRef.id}_${currentUser.uid}`), {
+                classId: classRef.id,
+                userId: currentUser.uid,
+                joinedAt: Timestamp.now()
             });
             
             currentClass = {
                 id: classRef.id,
                 name: className,
-                code: classCode,
-                members: [currentUser.uid]
+                code: code,
+                creatorId: currentUser.uid
             };
             
-            console.log('✅ Класс создан:', currentClass.name, 'ID:', currentClass.id);
+            document.getElementById('class-code-value').textContent = code;
+            document.getElementById('generated-code').style.display = 'block';
             
-            const classCodeValue = document.getElementById('class-code-value');
-            const generatedCode = document.getElementById('generated-code');
-            const classNameEl = document.getElementById('class-name');
-            const classCodeDisplay = document.getElementById('class-code-display');
-            
-            if (classCodeValue) classCodeValue.textContent = classCode;
-            if (generatedCode) generatedCode.style.display = 'block';
-            if (classNameEl) classNameEl.textContent = className;
-            if (classCodeDisplay) classCodeDisplay.textContent = `(код: ${classCode})`;
+            updateClassDisplay();
+            updateClassInfo();
             
             showToast('Класс создан успешно!', 'success');
-            
-            await updateClassInfo();
-            await loadHomework();
+            createClassForm.reset();
             
         } catch (error) {
             console.error('Error creating class:', error);
-            showToast('Ошибка при создании класса', 'error');
+            showToast('Ошибка создания класса', 'error');
         }
     });
 }
 
-// Присоединение к классу
 const joinClassForm = document.getElementById('join-class-form');
 if (joinClassForm) {
     joinClassForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         
-        const code = sanitizeInput(document.getElementById('join-code-input').value, 10).toUpperCase();
+        if (!currentUser) {
+            showToast('Необходима авторизация', 'error');
+            return;
+        }
+        
+        const code = document.getElementById('join-code-input').value.trim().toUpperCase();
         
         if (!code) {
             showToast('Введите код класса', 'error');
             return;
         }
         
-        await joinClassByCode(currentUser.uid, code);
+        try {
+            await joinClassByCode(currentUser.uid, code);
+            joinClassForm.reset();
+        } catch (error) {
+            console.error('Error in join form:', error);
+        }
     });
 }
 
 async function joinClassByCode(userId, code) {
     try {
-        const classQuery = query(collection(db, 'classes'), where('code', '==', code));
+        const classQuery = query(
+            collection(db, 'classes'),
+            where('code', '==', code)
+        );
+        
         const classSnapshot = await getDocs(classQuery);
         
         if (classSnapshot.empty) {
@@ -794,53 +856,32 @@ async function joinClassByCode(userId, code) {
         }
         
         const classDoc = classSnapshot.docs[0];
-        const classData = classDoc.data();
+        const classId = classDoc.id;
         
-        if (classData.members.includes(userId)) {
+        const existingMemberDoc = await getDoc(doc(db, 'classMembers', `${classId}_${userId}`));
+        
+        if (existingMemberDoc.exists()) {
             showToast('Вы уже в этом классе', 'info');
-            
-            currentClass = {
-                id: classDoc.id,
-                ...classData
-            };
-            
-            const classNameEl = document.getElementById('class-name');
-            const classCodeDisplay = document.getElementById('class-code-display');
-            
-            if (classNameEl) classNameEl.textContent = classData.name;
-            if (classCodeDisplay) classCodeDisplay.textContent = `(код: ${classData.code})`;
-            
-            console.log('✅ Класс установлен:', currentClass.name, 'ID:', currentClass.id);
-            
-            await loadHomework();
-            await updateClassInfo();
-            closeModal('class-modal');
             return;
         }
         
-        await updateDoc(doc(db, 'classes', classDoc.id), {
-            members: arrayUnion(userId)
+        await setDoc(doc(db, 'classMembers', `${classId}_${userId}`), {
+            classId: classId,
+            userId: userId,
+            joinedAt: Timestamp.now()
         });
         
         currentClass = {
-            id: classDoc.id,
-            ...classData,
-            members: [...classData.members, userId]
+            id: classId,
+            ...classDoc.data()
         };
         
-        const classNameEl = document.getElementById('class-name');
-        const classCodeDisplay = document.getElementById('class-code-display');
-        
-        if (classNameEl) classNameEl.textContent = classData.name;
-        if (classCodeDisplay) classCodeDisplay.textContent = `(код: ${classData.code})`;
-        
-        console.log('✅ Присоединились к классу:', currentClass.name, 'ID:', currentClass.id);
+        updateClassDisplay();
+        updateClassInfo();
+        loadHomework(classId);
         
         showToast('Вы присоединились к классу!', 'success');
-        
-        await updateClassInfo();
         closeModal('class-modal');
-        await loadHomework();
         
     } catch (error) {
         console.error('Error joining class:', error);
@@ -848,494 +889,340 @@ async function joinClassByCode(userId, code) {
     }
 }
 
-async function updateClassInfo() {
-    if (currentClass) {
-        const currentClassInfo = document.getElementById('current-class-info');
-        const currentClassNameDisplay = document.getElementById('current-class-name-display');
-        const currentClassCodeDisplay = document.getElementById('current-class-code-display');
-        const currentClassMembers = document.getElementById('current-class-members');
-        
-        if (currentClassInfo) currentClassInfo.style.display = 'block';
-        if (currentClassNameDisplay) currentClassNameDisplay.textContent = currentClass.name;
-        if (currentClassCodeDisplay) currentClassCodeDisplay.textContent = currentClass.code;
-        if (currentClassMembers) currentClassMembers.textContent = currentClass.members.length;
-    }
-}
-
-// Копирование кода класса
 const copyCodeBtn = document.getElementById('copy-code-btn');
 if (copyCodeBtn) {
     copyCodeBtn.addEventListener('click', () => {
-        const code = document.getElementById('class-code-value')?.textContent;
-        if (code) {
-            navigator.clipboard.writeText(code).then(() => {
-                showToast('Код скопирован!', 'success');
-            }).catch(() => {
-                showToast('Ошибка при копировании', 'error');
-            });
-        }
+        const codeValue = document.getElementById('class-code-value').textContent;
+        navigator.clipboard.writeText(codeValue).then(() => {
+            showToast('Код скопирован!', 'success');
+        }).catch(err => {
+            console.error('Could not copy code:', err);
+            showToast('Не удалось скопировать код', 'error');
+        });
     });
 }
-
 
 // ============================================
 // HOMEWORK MANAGEMENT
 // ============================================
 
-async function loadHomework() {
-    if (!currentClass) {
-        console.log('⚠️ Нет класса - показываем пустое состояние');
-        const homeworkGrid = document.getElementById('homework-grid');
-        if (homeworkGrid) {
-            homeworkGrid.innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-state-icon">📚</div>
-                    <h3>Выберите класс</h3>
-                    <p>Присоединитесь к классу или создайте новый</p>
-                </div>
-            `;
-        }
-        return;
+function loadHomework(classId) {
+    if (homeworkUnsubscribe) {
+        homeworkUnsubscribe();
     }
     
-    console.log('🔄 Загружаем ДЗ для класса:', currentClass.name, 'ID:', currentClass.id);
+    const hwQuery = query(
+        collection(db, 'homework'),
+        where('classId', '==', classId)
+    );
     
-    try {
-        if (homeworkUnsubscribe) {
-            homeworkUnsubscribe();
-        }
+    homeworkUnsubscribe = onSnapshot(hwQuery, (snapshot) => {
+        currentHomeworkData = [];
         
-        const homeworkQuery = query(
-            collection(db, 'homework'),
-            where('classId', '==', currentClass.id)
-        );
-        
-        homeworkUnsubscribe = onSnapshot(homeworkQuery, (snapshot) => {
-            currentHomeworkData = [];
-            snapshot.forEach((doc) => {
-                const data = doc.data();
-                currentHomeworkData.push({
-                    id: doc.id,
-                    ...data
-                });
+        snapshot.forEach(docSnapshot => {
+            currentHomeworkData.push({
+                id: docSnapshot.id,
+                ...docSnapshot.data()
             });
-            
-            console.log(`✅ Загружено ${currentHomeworkData.length} заданий для класса ${currentClass.name}`);
-            
-            currentHomeworkData.sort((a, b) => {
-                return a.deadline.toDate() - b.deadline.toDate();
-            });
-            
-            renderHomework();
-        }, (error) => {
-            console.error('❌ Error in homework snapshot:', error);
-            showToast('Ошибка загрузки заданий', 'error');
         });
         
-    } catch (error) {
-        console.error('❌ Error loading homework:', error);
+        currentHomeworkData.sort((a, b) => {
+            return a.deadline.toDate() - b.deadline.toDate();
+        });
+        
+        renderHomework();
+    }, (error) => {
+        console.error('Error in homework snapshot:', error);
         showToast('Ошибка загрузки заданий', 'error');
-    }
+    });
 }
 
 function renderHomework(filter = 'all') {
-    const container = document.getElementById('homework-grid');
+    const container = document.getElementById('homework-list');
     if (!container) return;
     
-    if (currentHomeworkData.length === 0) {
+    let filteredHomework = currentHomeworkData;
+    
+    if (filter === 'active') {
+        filteredHomework = currentHomeworkData.filter(hw => 
+            !hw.completedBy?.includes(currentUser?.uid)
+        );
+    } else if (filter === 'completed') {
+        filteredHomework = currentHomeworkData.filter(hw => 
+            hw.completedBy?.includes(currentUser?.uid)
+        );
+    }
+    
+    if (filteredHomework.length === 0) {
         container.innerHTML = `
             <div class="empty-state">
                 <div class="empty-state-icon">📝</div>
                 <h3>Нет заданий</h3>
-                <p>Добавьте первое домашнее задание!</p>
+                <p>Добавь первое задание для своего класса!</p>
             </div>
         `;
         return;
     }
     
-    let filteredHomework = currentHomeworkData;
-    const now = new Date();
-    
-    if (filter === 'pending') {
-        const userDocRef = doc(db, 'users', currentUser.uid);
-        getDoc(userDocRef).then(docSnapshot => {
-            const completedIds = docSnapshot.data()?.completedHomework || [];
-            filteredHomework = currentHomeworkData.filter(hw => !completedIds.includes(hw.id));
-            displayHomeworkCards(filteredHomework);
-        }).catch(error => {
-            console.error('Error filtering pending homework:', error);
-            displayHomeworkCards(currentHomeworkData);
-        });
-        return;
-    } else if (filter === 'urgent') {
-        const urgentTime = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-        filteredHomework = currentHomeworkData.filter(hw => {
-            const deadline = hw.deadline.toDate();
-            return deadline <= urgentTime && deadline >= now;
-        });
-    }
-    
-    displayHomeworkCards(filteredHomework);
-}
-
-function displayHomeworkCards(homeworkList) {
-    const container = document.getElementById('homework-grid');
-    if (!container) return;
-    
-    const now = new Date();
-    
-    container.innerHTML = homeworkList.map(hw => {
+    container.innerHTML = filteredHomework.map(hw => {
         const deadline = hw.deadline.toDate();
-        const isUrgent = deadline <= new Date(now.getTime() + 24 * 60 * 60 * 1000);
-        const isPast = deadline < now;
+        const now = new Date();
+        const isOverdue = deadline < now;
+        const isCompleted = hw.completedBy?.includes(currentUser?.uid);
         
         return `
-            <div class="homework-card ${isUrgent && !isPast ? 'urgent' : ''}" data-id="${hw.id}">
-                <div class="card-header">
-                    <span class="subject-tag">${sanitizeInput(hw.subject, 50)}</span>
-                    ${isUrgent && !isPast ? '<span class="urgent-badge">Срочно</span>' : ''}
+            <div class="homework-card ${isCompleted ? 'completed' : ''} ${isOverdue && !isCompleted ? 'overdue' : ''}" 
+                 onclick="openHomeworkDetail('${hw.id}')">
+                <div class="hw-subject">${sanitizeInput(hw.subject, 100)}</div>
+                <div class="hw-description">${sanitizeInput(hw.description, 200)}</div>
+                <div class="hw-meta">
+                    <span class="hw-deadline ${isOverdue && !isCompleted ? 'overdue' : ''}">
+                        ⏰ ${formatDate(deadline)}
+                    </span>
+                    <span class="hw-author">👤 ${sanitizeInput(hw.authorName, 50)}</span>
                 </div>
-                <p class="card-description">${sanitizeInput(hw.description, 200)}</p>
-                <div class="card-footer">
-                    <div class="deadline ${isUrgent ? 'urgent' : ''}">
-                        🕐 ${formatDate(deadline)}
-                    </div>
-                    <div class="author-info">
-                        👤 ${sanitizeInput(hw.authorName || 'Аноним', 50)}
-                    </div>
-                </div>
+                ${isCompleted ? '<div class="completed-badge">✓ Выполнено</div>' : ''}
             </div>
         `;
     }).join('');
-    
-    document.querySelectorAll('.homework-card').forEach(card => {
-        card.addEventListener('click', () => {
-            const id = card.dataset.id;
-            showHomeworkDetail(id);
-        });
-    });
 }
 
-// Добавление домашнего задания
 const addHomeworkForm = document.getElementById('add-homework-form');
 if (addHomeworkForm) {
     addHomeworkForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         
-        if (!currentClass) {
-            showToast('Сначала выберите класс', 'error');
+        if (!currentUser || !currentClass) {
+            showToast('Выберите класс', 'error');
             return;
         }
         
-        if (!rateLimiter.canPerform('add_homework', 3)) {
-            showToast('Слишком много попыток. Подожди минуту.', 'error');
+        if (!rateLimiter.canPerform('add_homework', 10)) {
+            showToast('Слишком много заданий. Подожди минуту.', 'error');
             return;
         }
         
         const subject = sanitizeInput(document.getElementById('hw-subject').value, 100);
         const description = sanitizeInput(document.getElementById('hw-description').value, 1000);
-        const deadlineValue = document.getElementById('hw-deadline').value;
+        const deadlineStr = document.getElementById('hw-deadline').value;
         
-        if (!subject || !description || !deadlineValue) {
+        if (!subject || !description || !deadlineStr) {
             showToast('Заполните все поля', 'error');
             return;
         }
         
-        if (isSpam(description)) {
-            showToast('Обнаружен спам. Напиши нормальное описание.', 'error');
-            return;
-        }
-        
-        const deadline = new Date(deadlineValue);
-        const now = new Date();
-        const maxFuture = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
-        
-        if (deadline < now) {
-            showToast('Дедлайн не может быть в прошлом', 'error');
-            return;
-        }
-        
-        if (deadline > maxFuture) {
-            showToast('Дедлайн слишком далеко в будущем', 'error');
+        if (isSpam(subject) || isSpam(description)) {
+            showToast('Обнаружен спам. Проверьте текст.', 'error');
             return;
         }
         
         try {
-            const newHomework = {
+            const deadline = Timestamp.fromDate(new Date(deadlineStr));
+            
+            await addDoc(collection(db, 'homework'), {
                 classId: currentClass.id,
                 subject: subject,
                 description: description,
-                deadline: Timestamp.fromDate(deadline),
+                deadline: deadline,
                 authorId: currentUser.uid,
-                authorName: currentUser.displayName || 'Аноним',
-                proofs: [],
+                authorName: currentUser.displayName || 'Пользователь',
+                completedBy: [],
                 createdAt: Timestamp.now()
-            };
+            });
             
-            await addDoc(collection(db, 'homework'), newHomework);
-            
-            showToast('Домашнее задание добавлено!', 'success');
-            closeModal('add-homework-modal');
+            showToast('Задание добавлено!', 'success');
             addHomeworkForm.reset();
-            
-            await sendNotificationToClass(
-                currentClass.id,
-                'Новое задание',
-                `${currentUser.displayName || 'Кто-то'} добавил задание по ${subject}`
-            );
+            closeModal('add-homework-modal');
             
         } catch (error) {
             console.error('Error adding homework:', error);
-            showToast('Ошибка при добавлении задания', 'error');
+            showToast('Ошибка добавления задания', 'error');
         }
     });
 }
 
-// Показать детали задания
-async function showHomeworkDetail(homeworkId) {
+window.openHomeworkDetail = async function(homeworkId) {
     const homework = currentHomeworkData.find(hw => hw.id === homeworkId);
     if (!homework) return;
     
-    try {
-        const detailSubject = document.getElementById('detail-subject');
-        const detailDescription = document.getElementById('detail-description');
-        const detailDeadline = document.getElementById('detail-deadline');
-        const detailAuthor = document.getElementById('detail-author');
+    document.getElementById('detail-subject').textContent = homework.subject;
+    document.getElementById('detail-description').textContent = homework.description;
+    document.getElementById('detail-deadline').textContent = formatDate(homework.deadline.toDate());
+    document.getElementById('detail-author').textContent = homework.authorName;
+    
+    const isCompleted = homework.completedBy?.includes(currentUser?.uid);
+    const completeBtn = document.getElementById('mark-complete-btn');
+    const proofUploadArea = document.getElementById('proof-upload-area');
+    const proofPreview = document.getElementById('proof-preview');
+    const proofsSection = document.getElementById('proofs-section');
+    
+    if (isCompleted) {
+        completeBtn.style.display = 'none';
+        proofUploadArea.style.display = 'none';
         
-        if (detailSubject) detailSubject.textContent = homework.subject;
-        if (detailDescription) detailDescription.textContent = homework.description;
-        if (detailDeadline) detailDeadline.textContent = formatDate(homework.deadline.toDate());
-        if (detailAuthor) detailAuthor.textContent = homework.authorName || 'Аноним';
-        
-        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-        const completedHomework = userDoc.data()?.completedHomework || [];
-        const isCompleted = completedHomework.includes(homeworkId);
-        
-        const userProof = homework.proofs?.find(p => p.userId === currentUser.uid);
-        
-        const proofUploadArea = document.getElementById('proof-upload-area');
-        const proofPreview = document.getElementById('proof-preview');
-        const proofImage = document.getElementById('proof-image');
-        
-        if (userProof) {
-            if (proofUploadArea) proofUploadArea.style.display = 'none';
-            if (proofPreview) proofPreview.style.display = 'block';
-            if (proofImage) proofImage.src = userProof.imageUrl;
-        } else {
-            if (proofUploadArea) proofUploadArea.style.display = 'block';
-            if (proofPreview) proofPreview.style.display = 'none';
+        const proofDoc = await getDoc(doc(db, 'proofs', `${homeworkId}_${currentUser.uid}`));
+        if (proofDoc.exists()) {
+            const proofData = proofDoc.data();
+            document.getElementById('proof-image').src = proofData.imageData;
+            proofPreview.style.display = 'block';
         }
         
-        const proofsSection = document.getElementById('proofs-section');
-        if (userProof) {
-            const otherProofs = homework.proofs?.filter(p => p.userId !== currentUser.uid) || [];
-            if (proofsSection) proofsSection.style.display = 'block';
-            renderOtherProofs(otherProofs, homeworkId);
-        } else {
-            if (proofsSection) proofsSection.style.display = 'none';
-        }
-        
-        const completeBtn = document.getElementById('mark-complete-btn');
-        if (completeBtn) {
-            if (isCompleted) {
-                completeBtn.innerHTML = '<span>✓ Выполнено</span>';
-                completeBtn.disabled = true;
-                completeBtn.style.opacity = '0.6';
-            } else {
-                completeBtn.innerHTML = '<span>✓ Отметить выполненным (+1 балл)</span><div class="btn-glow"></div>';
-                completeBtn.disabled = !userProof;
-                completeBtn.style.opacity = userProof ? '1' : '0.6';
-                completeBtn.onclick = () => markHomeworkComplete(homeworkId);
-            }
-        }
-        
-        const modal = document.getElementById('homework-detail-modal');
-        if (modal) modal.dataset.homeworkId = homeworkId;
-        
-        openModal('homework-detail-modal');
-        
-    } catch (error) {
-        console.error('Error showing homework detail:', error);
-        showToast('Ошибка загрузки деталей задания', 'error');
+        proofsSection.style.display = 'block';
+        await loadOtherProofs(homeworkId);
+    } else {
+        completeBtn.style.display = 'block';
+        proofUploadArea.style.display = 'block';
+        proofPreview.style.display = 'none';
+        proofsSection.style.display = 'none';
     }
-}
+    
+    completeBtn.onclick = () => markHomeworkComplete(homeworkId);
+    
+    openModal('homework-detail-modal');
+    
+    window.currentHomeworkId = homeworkId;
+};
 
-// Загрузка доказательства
 const uploadProofBtn = document.getElementById('upload-proof-btn');
-if (uploadProofBtn) {
-    uploadProofBtn.addEventListener('click', () => {
-        const proofFile = document.getElementById('proof-file');
-        if (proofFile) proofFile.click();
-    });
-}
-
 const proofFileInput = document.getElementById('proof-file');
-if (proofFileInput) {
+
+if (uploadProofBtn && proofFileInput) {
+    uploadProofBtn.addEventListener('click', () => {
+        proofFileInput.click();
+    });
+    
     proofFileInput.addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (!file) return;
         
-        if (!rateLimiter.canPerform('upload_proof', 5)) {
-            showToast('Слишком много попыток. Подожди минуту.', 'error');
-            e.target.value = '';
-            return;
-        }
-        
-        const modal = document.getElementById('homework-detail-modal');
-        const homeworkId = modal?.dataset.homeworkId;
-        
-        if (!homeworkId) {
-            showToast('Ошибка: не найдено ID задания', 'error');
-            e.target.value = '';
-            return;
-        }
-        
         try {
-            showToast('Обработка изображения...', 'info');
+            const compressedImage = await validateAndCompressImage(file);
             
-            const base64 = await validateAndCompressImage(file);
+            window.currentProofImage = compressedImage;
             
-            const homeworkRef = doc(db, 'homework', homeworkId);
-            await updateDoc(homeworkRef, {
-                proofs: arrayUnion({
-                    userId: currentUser.uid,
-                    userName: currentUser.displayName || 'Аноним',
-                    imageUrl: base64,
-                    uploadedAt: Timestamp.now(),
-                    votes: []
-                })
-            });
+            document.getElementById('proof-image').src = compressedImage;
+            document.getElementById('proof-upload-area').style.display = 'none';
+            document.getElementById('proof-preview').style.display = 'block';
             
-            showToast('Доказательство загружено!', 'success');
-            e.target.value = '';
-            await showHomeworkDetail(homeworkId);
+            showToast('Фото загружено! Теперь отметь задание выполненным.', 'success');
             
         } catch (error) {
-            console.error('Error uploading proof:', error);
-            showToast(error.message || 'Ошибка при загрузке доказательства', 'error');
-            e.target.value = '';
+            showToast(error.message, 'error');
         }
     });
 }
 
-// Удаление доказательства
 const removeProofBtn = document.getElementById('remove-proof-btn');
 if (removeProofBtn) {
-    removeProofBtn.addEventListener('click', async () => {
-        const modal = document.getElementById('homework-detail-modal');
-        const homeworkId = modal?.dataset.homeworkId;
-        
-        if (!homeworkId) return;
-        
-        const homework = currentHomeworkData.find(hw => hw.id === homeworkId);
-        if (!homework) return;
-        
-        const userProof = homework.proofs?.find(p => p.userId === currentUser.uid);
-        if (!userProof) return;
-        
-        try {
-            const homeworkRef = doc(db, 'homework', homeworkId);
-            await updateDoc(homeworkRef, {
-                proofs: arrayRemove(userProof)
-            });
-            
-            showToast('Доказательство удалено', 'info');
-            await showHomeworkDetail(homeworkId);
-            
-        } catch (error) {
-            console.error('Error removing proof:', error);
-            showToast('Ошибка при удалении доказательства', 'error');
-        }
+    removeProofBtn.addEventListener('click', () => {
+        window.currentProofImage = null;
+        document.getElementById('proof-file').value = '';
+        document.getElementById('proof-upload-area').style.display = 'block';
+        document.getElementById('proof-preview').style.display = 'none';
     });
 }
 
-// Отображение доказательств других учеников
-function renderOtherProofs(proofs, homeworkId) {
-    const container = document.getElementById('other-proofs-grid');
-    if (!container) return;
+async function markHomeworkComplete(homeworkId) {
+    if (!currentUser) return;
     
-    if (proofs.length === 0) {
-        container.innerHTML = '<p class="info-text">Пока никто не загрузил доказательства</p>';
+    if (!rateLimiter.canPerform('complete_homework', 20)) {
+        showToast('Слишком быстро! Подожди немного.', 'error');
         return;
     }
     
-    container.innerHTML = proofs.map(proof => `
-        <div class="proof-item">
-            <img src="${proof.imageUrl}" alt="Доказательство ${sanitizeInput(proof.userName, 50)}">
-            <div class="proof-overlay">
-                <span class="proof-author">${sanitizeInput(proof.userName, 50)}</span>
-                <div class="proof-actions">
-                    <button onclick="voteProof('${homeworkId}', '${proof.userId}', false)" title="Это фейк">
-                        👎 ${proof.votes?.filter(v => !v.isValid).length || 0}
-                    </button>
-                    <button onclick="reportProof('${homeworkId}', '${proof.userId}')" title="Пожаловаться">
-                        🚩
+    if (!window.currentProofImage) {
+        showToast('Сначала загрузи доказательство выполнения!', 'error');
+        return;
+    }
+    
+    try {
+        await setDoc(doc(db, 'proofs', `${homeworkId}_${currentUser.uid}`), {
+            homeworkId: homeworkId,
+            userId: currentUser.uid,
+            userName: currentUser.displayName || 'Пользователь',
+            imageData: window.currentProofImage,
+            createdAt: Timestamp.now()
+        });
+        
+        await updateDoc(doc(db, 'homework', homeworkId), {
+            completedBy: arrayUnion(currentUser.uid)
+        });
+        
+        await updateDoc(doc(db, 'users', currentUser.uid), {
+            points: increment(1),
+            completedHomework: arrayUnion(homeworkId)
+        });
+        
+        const homework = currentHomeworkData.find(hw => hw.id === homeworkId);
+        await sendNotificationToClass(
+            `Новое доказательство по "${homework.subject}"`,
+            `${currentUser.displayName} выполнил задание`
+        );
+        
+        showToast('Задание выполнено! +1 балл', 'success');
+        
+        closeModal('homework-detail-modal');
+        window.currentProofImage = null;
+        
+        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+        const userPoints = document.getElementById('user-points');
+        const completedCount = document.getElementById('completed-count');
+        if (userPoints) userPoints.textContent = userDoc.data()?.points || 0;
+        if (completedCount) completedCount.textContent = userDoc.data()?.completedHomework?.length || 0;
+        
+    } catch (error) {
+        console.error('Error completing homework:', error);
+        showToast('Ошибка при выполнении задания', 'error');
+    }
+}
+
+async function loadOtherProofs(homeworkId) {
+    if (!currentUser) return;
+    
+    try {
+        const proofsQuery = query(
+            collection(db, 'proofs'),
+            where('homeworkId', '==', homeworkId)
+        );
+        
+        const proofsSnapshot = await getDocs(proofsQuery);
+        const proofs = [];
+        
+        proofsSnapshot.forEach(docSnapshot => {
+            const proofData = docSnapshot.data();
+            if (proofData.userId !== currentUser.uid) {
+                proofs.push(proofData);
+            }
+        });
+        
+        const container = document.getElementById('other-proofs-grid');
+        if (!container) return;
+        
+        if (proofs.length === 0) {
+            container.innerHTML = '<p class="info-text">Пока нет доказательств от других</p>';
+            return;
+        }
+        
+        container.innerHTML = proofs.map(proof => `
+            <div class="proof-item">
+                <img src="${proof.imageData}" alt="Доказательство ${sanitizeInput(proof.userName, 50)}">
+                <div class="proof-info">
+                    <span class="proof-author">${sanitizeInput(proof.userName, 50)}</span>
+                    <button class="btn-report" onclick="reportProof('${proof.homeworkId}', '${proof.userId}')">
+                        ⚠️ Пожаловаться
                     </button>
                 </div>
             </div>
-        </div>
-    `).join('');
-}
-
-// Голосование за доказательство
-window.voteProof = async function(homeworkId, proofUserId, isValid) {
-    try {
-        const homework = currentHomeworkData.find(hw => hw.id === homeworkId);
-        if (!homework) {
-            showToast('Задание не найдено', 'error');
-            return;
-        }
-        
-        const proof = homework.proofs.find(p => p.userId === proofUserId);
-        if (!proof) {
-            showToast('Доказательство не найдено', 'error');
-            return;
-        }
-        
-        const existingVote = proof.votes?.find(v => v.voterId === currentUser.uid);
-        if (existingVote) {
-            showToast('Вы уже голосовали', 'info');
-            return;
-        }
-        
-        const updatedProof = {
-            ...proof,
-            votes: [...(proof.votes || []), { voterId: currentUser.uid, isValid }]
-        };
-        
-        const fakeVotes = updatedProof.votes.filter(v => !v.isValid).length;
-        
-        if (fakeVotes >= 5) {
-            const homeworkRef = doc(db, 'homework', homeworkId);
-            await updateDoc(homeworkRef, {
-                proofs: arrayRemove(proof)
-            });
-            showToast('Доказательство удалено из-за голосования', 'info');
-        } else {
-            const homeworkRef = doc(db, 'homework', homeworkId);
-            const allProofs = homework.proofs.map(p => 
-                p.userId === proofUserId ? updatedProof : p
-            );
-            await updateDoc(homeworkRef, { proofs: allProofs });
-            showToast('Голос учтен', 'success');
-        }
-        
-        await showHomeworkDetail(homeworkId);
+        `).join('');
         
     } catch (error) {
-        console.error('Error voting:', error);
-        showToast('Ошибка при голосовании', 'error');
+        console.error('Error loading proofs:', error);
     }
-};
+}
 
-// Жалоба на доказательство
 window.reportProof = function(homeworkId, proofUserId) {
-    const modal = document.getElementById('report-modal');
-    if (modal) {
-        modal.dataset.homeworkId = homeworkId;
-        modal.dataset.proofUserId = proofUserId;
-        openModal('report-modal');
-    }
+    window.reportingProof = { homeworkId, proofUserId };
+    openModal('report-modal');
 };
 
 const reportForm = document.getElementById('report-form');
@@ -1343,211 +1230,159 @@ if (reportForm) {
     reportForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         
-        const modal = document.getElementById('report-modal');
-        const homeworkId = modal?.dataset.homeworkId;
-        const proofUserId = modal?.dataset.proofUserId;
-        const reason = sanitizeInput(document.getElementById('report-reason')?.value, 500);
+        if (!window.reportingProof || !currentUser) return;
         
-        if (!homeworkId || !proofUserId || !reason) {
-            showToast('Заполните причину жалобы', 'error');
+        const reason = sanitizeInput(document.getElementById('report-reason').value, 500);
+        
+        if (!reason) {
+            showToast('Опиши причину жалобы', 'error');
             return;
         }
         
         try {
             await addDoc(collection(db, 'reports'), {
-                homeworkId: homeworkId,
-                proofUserId: proofUserId,
+                homeworkId: window.reportingProof.homeworkId,
+                reportedUserId: window.reportingProof.proofUserId,
                 reporterId: currentUser.uid,
-                reporterName: currentUser.displayName || 'Аноним',
                 reason: reason,
                 createdAt: Timestamp.now(),
                 status: 'pending'
             });
             
-            showToast('Жалоба отправлена модератору', 'success');
+            showToast('Жалоба отправлена. Спасибо!', 'success');
             closeModal('report-modal');
             reportForm.reset();
             
         } catch (error) {
-            console.error('Error reporting:', error);
-            showToast('Ошибка при отправке жалобы', 'error');
+            console.error('Error submitting report:', error);
+            showToast('Ошибка отправки жалобы', 'error');
         }
     });
 }
 
-// Отметить задание как выполненное
-async function markHomeworkComplete(homeworkId) {
-    try {
-        const userRef = doc(db, 'users', currentUser.uid);
-        
-        await updateDoc(userRef, {
-            completedHomework: arrayUnion(homeworkId),
-            points: increment(1)
-        });
-        
-        showToast('Задание выполнено! +1 балл', 'success');
-        
-        const userDoc = await getDoc(userRef);
-        const userData = userDoc.data();
-        
-        const userPoints = document.getElementById('user-points');
-        const completedCount = document.getElementById('completed-count');
-        
-        if (userPoints) userPoints.textContent = userData.points;
-        if (completedCount) completedCount.textContent = userData.completedHomework.length;
-        
-        closeModal('homework-detail-modal');
-        
-    } catch (error) {
-        console.error('Error marking complete:', error);
-        showToast('Ошибка при отметке задания', 'error');
-    }
-}
-
-
 // ============================================
-// CALENDAR VIEW
+// CALENDAR
 // ============================================
 
 function generateCalendar() {
-    const container = document.getElementById('calendar-container');
-    if (!container) return;
+    const calendarDays = document.getElementById('calendar-days');
+    if (!calendarDays) return;
     
     const now = new Date();
     const year = now.getFullYear();
     const month = now.getMonth();
     
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startDay = firstDay.getDay();
+    document.getElementById('current-month').textContent = now.toLocaleDateString('ru-RU', { 
+        month: 'long', 
+        year: 'numeric' 
+    });
     
-    const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
-                       'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
     
-    let html = `
-        <div class="calendar-header">
-            <h2 class="calendar-title">${monthNames[month]} ${year}</h2>
-            <div class="calendar-nav">
-                <button class="btn btn-secondary" onclick="changeMonth(-1)">←</button>
-                <button class="btn btn-secondary" onclick="changeMonth(1)">→</button>
-            </div>
-        </div>
-        <div class="calendar-grid">
-            <div class="calendar-day-header">Вс</div>
-            <div class="calendar-day-header">Пн</div>
-            <div class="calendar-day-header">Вт</div>
-            <div class="calendar-day-header">Ср</div>
-            <div class="calendar-day-header">Чт</div>
-            <div class="calendar-day-header">Пт</div>
-            <div class="calendar-day-header">Сб</div>
-    `;
+    let html = '';
     
+    const startDay = firstDay === 0 ? 6 : firstDay - 1;
     for (let i = 0; i < startDay; i++) {
         html += '<div class="calendar-day empty"></div>';
     }
     
     for (let day = 1; day <= daysInMonth; day++) {
         const date = new Date(year, month, day);
-        const isToday = date.toDateString() === now.toDateString();
+        const isToday = day === now.getDate();
         
-        const homeworkCount = currentHomeworkData.filter(hw => {
-            const deadline = hw.deadline.toDate();
-            return deadline.toDateString() === date.toDateString();
-        }).length;
-        
-        const hasHomework = homeworkCount > 0;
+        const dayHomework = currentHomeworkData.filter(hw => {
+            const hwDate = hw.deadline.toDate();
+            return hwDate.getDate() === day && 
+                   hwDate.getMonth() === month && 
+                   hwDate.getFullYear() === year;
+        });
         
         html += `
-            <div class="calendar-day ${isToday ? 'today' : ''} ${hasHomework ? 'has-homework' : ''}">
-                <span>${day}</span>
-                ${hasHomework ? `<span class="homework-count">${homeworkCount}</span>` : ''}
+            <div class="calendar-day ${isToday ? 'today' : ''} ${dayHomework.length > 0 ? 'has-homework' : ''}">
+                <div class="day-number">${day}</div>
+                ${dayHomework.length > 0 ? `<div class="homework-count">${dayHomework.length}</div>` : ''}
             </div>
         `;
     }
     
-    html += '</div>';
-    container.innerHTML = html;
+    calendarDays.innerHTML = html;
 }
-
-window.changeMonth = function(direction) {
-    showToast('Функция в разработке', 'info');
-};
 
 // ============================================
 // LEADERBOARD
 // ============================================
 
 async function loadLeaderboard(scope = 'class') {
-    const container = document.getElementById('leaderboard-container');
+    const container = document.getElementById('leaderboard-list');
     if (!container) return;
     
     try {
-        let usersQuery;
+        let users = [];
         
         if (scope === 'class' && currentClass) {
-            if (currentClass.members.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-state-icon">🏆</div>
-                        <h3>Нет участников</h3>
-                        <p>В классе пока нет участников</p>
-                    </div>
-                `;
-                return;
-            }
-            
-            usersQuery = query(
-                collection(db, 'users'),
-                where('__name__', 'in', currentClass.members)
+            const membersQuery = query(
+                collection(db, 'classMembers'),
+                where('classId', '==', currentClass.id)
             );
+            
+            const membersSnapshot = await getDocs(membersQuery);
+            const userIds = membersSnapshot.docs.map(doc => doc.data().userId);
+            
+            for (const userId of userIds) {
+                const userDoc = await getDoc(doc(db, 'users', userId));
+                if (userDoc.exists()) {
+                    users.push({
+                        id: userId,
+                        ...userDoc.data()
+                    });
+                }
+            }
         } else {
-            usersQuery = query(collection(db, 'users'));
+            const usersSnapshot = await getDocs(collection(db, 'users'));
+            usersSnapshot.forEach(docSnapshot => {
+                users.push({
+                    id: docSnapshot.id,
+                    ...docSnapshot.data()
+                });
+            });
         }
         
-        const snapshot = await getDocs(usersQuery);
-        const users = [];
+        users.sort((a, b) => (b.points || 0) - (a.points || 0));
         
-        snapshot.forEach(docSnapshot => {
-            const data = docSnapshot.data();
-            users.push({
-                id: docSnapshot.id,
-                name: data.name || 'Аноним',
-                points: data.points || 0,
-                completedCount: data.completedHomework?.length || 0
-            });
-        });
-        
-        users.sort((a, b) => b.points - a.points);
-        
-        const displayUsers = scope === 'global' ? users.slice(0, 50) : users;
-        
-        if (displayUsers.length === 0) {
+        if (users.length === 0) {
             container.innerHTML = `
                 <div class="empty-state">
                     <div class="empty-state-icon">🏆</div>
-                    <h3>Нет данных</h3>
-                    <p>Пока нет участников для отображения</p>
+                    <h3>Пока нет данных</h3>
                 </div>
             `;
             return;
         }
         
-        container.innerHTML = displayUsers.map((user, index) => {
-            const rank = index + 1;
-            let rankClass = '';
-            if (rank === 1) rankClass = 'gold';
-            else if (rank === 2) rankClass = 'silver';
-            else if (rank === 3) rankClass = 'bronze';
+        container.innerHTML = users.map((user, index) => {
+            const isCurrentUser = user.id === currentUser?.uid;
+            const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '';
             
             return `
-                <div class="leaderboard-item ${rank <= 3 ? 'top-3' : ''}">
-                    <div class="rank ${rankClass}">#${rank}</div>
-                    <div class="player-info">
-                        <div class="player-name">${sanitizeInput(user.name, 50)}</div>
-                        <div class="player-class">${user.completedCount} заданий выполнено</div>
+                <div class="leaderboard-item ${isCurrentUser ? 'current-user' : ''}">
+                    <div class="rank">
+                        ${medal || `#${index + 1}`}
                     </div>
-                    <div class="player-score">${user.points}</div>
+                    <div class="user-info">
+                        <div class="user-avatar-small">
+                            ${user.name?.[0]?.toUpperCase() || 'U'}
+                        </div>
+                        <div class="user-details">
+                            <div class="user-name">${sanitizeInput(user.name || 'Пользователь', 50)}</div>
+                            <div class="user-stats">
+                                ${user.completedHomework?.length || 0} заданий выполнено
+                            </div>
+                        </div>
+                    </div>
+                    <div class="user-points">
+                        ${user.points || 0} 🏆
+                    </div>
                 </div>
             `;
         }).join('');
@@ -1563,8 +1398,8 @@ async function loadLeaderboard(scope = 'class') {
 // ============================================
 
 async function loadCompletedHomework() {
-    const container = document.getElementById('completed-grid');
-    if (!container) return;
+    const container = document.getElementById('completed-homework-list');
+    if (!container || !currentUser) return;
     
     try {
         const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
@@ -1574,20 +1409,29 @@ async function loadCompletedHomework() {
             container.innerHTML = `
                 <div class="empty-state">
                     <div class="empty-state-icon">✅</div>
-                    <h3>Нет выполненных заданий</h3>
-                    <p>Выполни свое первое задание!</p>
+                    <h3>Пока нет выполненных заданий</h3>
                 </div>
             `;
             return;
         }
         
-        const completedHomework = currentHomeworkData.filter(hw => completedIds.includes(hw.id));
+        const completedHomework = currentHomeworkData.filter(hw => 
+            completedIds.includes(hw.id)
+        );
         
-        displayHomeworkCards(completedHomework);
+        container.innerHTML = completedHomework.map(hw => `
+            <div class="homework-card completed">
+                <div class="hw-subject">${sanitizeInput(hw.subject, 100)}</div>
+                <div class="hw-description">${sanitizeInput(hw.description, 200)}</div>
+                <div class="hw-meta">
+                    <span class="hw-deadline">⏰ ${formatDate(hw.deadline.toDate())}</span>
+                </div>
+                <div class="completed-badge">✓ Выполнено</div>
+            </div>
+        `).join('');
         
     } catch (error) {
         console.error('Error loading completed homework:', error);
-        showToast('Ошибка загрузки выполненных заданий', 'error');
     }
 }
 
@@ -1595,24 +1439,31 @@ async function loadCompletedHomework() {
 // NOTIFICATIONS
 // ============================================
 
-async function sendNotificationToClass(classId, title, message) {
+async function sendNotificationToClass(title, message) {
+    if (!currentClass) return;
+    
     try {
-        const classDoc = await getDoc(doc(db, 'classes', classId));
-        if (!classDoc.exists()) {
-            console.error('Class not found');
-            return;
-        }
+        const membersQuery = query(
+            collection(db, 'classMembers'),
+            where('classId', '==', currentClass.id)
+        );
         
-        const members = classDoc.data().members;
+        const membersSnapshot = await getDocs(membersQuery);
         
-        const notifications = members.map(memberId => {
-            return addDoc(collection(db, 'notifications'), {
-                userId: memberId,
-                title: title,
-                message: message,
-                read: false,
-                createdAt: Timestamp.now()
-            });
+        const notifications = [];
+        membersSnapshot.forEach(memberDoc => {
+            const userId = memberDoc.data().userId;
+            if (userId !== currentUser?.uid) {
+                notifications.push(
+                    setDoc(doc(collection(db, 'notifications')), {
+                        userId: userId,
+                        title: title,
+                        message: message,
+                        read: false,
+                        createdAt: Timestamp.now()
+                    })
+                );
+            }
         });
         
         await Promise.all(notifications);
